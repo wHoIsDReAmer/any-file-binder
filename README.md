@@ -1,2 +1,12 @@
 # any-file-binder
-Any file binder using rust
+
+```
+CLI tool for file binder
+```
+
+# how to use?
+
+```
+Build and just run binder.exe
+but u should include `stub.bd` file in your binder.exe folder
+```
