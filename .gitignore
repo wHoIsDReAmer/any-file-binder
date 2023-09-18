@@ -1,25 +1,11 @@
-<<<<<<< HEAD
 /binder/target/*
 /binder/.idea
 /binder/.gitignore
-/binder/.iml
-/binder/.lock
+/binder/*.iml
+/binder/*.lock
 
 /stub/target/*
 /stub/.idea
 /stub/.gitignore
-/stub/.iml
-/stub/.lock
-=======
-/binder/.gitignore
-/binder/target/*
-/binder/.idea
-/binder/.git
-/binder/.iml
-
-/stub/.gitignore
-/stub/target/*
-/stub/.idea
-/stub/.git
-/stub/.iml
->>>>>>> 1c5ff11e712ee8d2f37f6406db1e84b7ca75683c
+/stub/*.iml
+/stub/*.lock
