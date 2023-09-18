@@ -1,0 +1,17 @@
+[package]
+name = "binder"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 'z'
+panic = "abort"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base64 = "0.21.0-rc.1"
+rust-crypto = "0.2.36"
+rand = "0.8.5"
