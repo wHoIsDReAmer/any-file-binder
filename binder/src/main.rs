@@ -1,8 +1,7 @@
 mod utils;
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 type Binder<'a> = utils::binder::Binder<'a>;
 
@@ -40,7 +39,7 @@ fn main() {
             args.push(path.replace("\"", ""));
         }
 
-        println!("");
+        println!();
         std::io::stdout().write(b"output : ");
         std::io::stdout().flush();
         let mut output = String::new();

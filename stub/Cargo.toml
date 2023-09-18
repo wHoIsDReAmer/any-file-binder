@@ -12,5 +12,9 @@ panic = "abort"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+<<<<<<< HEAD
 base64 = "0.21.0-rc.1"
 rust-crypto = "0.2.36"
+=======
+base64 = "0.21.0-rc.1"
+>>>>>>> 1c5ff11e712ee8d2f37f6406db1e84b7ca75683c
