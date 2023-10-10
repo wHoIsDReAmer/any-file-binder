@@ -1,4 +1,4 @@
-# any_file_binder
+# any-file-binder
 
 ```
 CLI tool for file binding on windows
