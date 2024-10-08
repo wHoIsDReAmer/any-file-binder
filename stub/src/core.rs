@@ -1,5 +1,5 @@
 use anyhow::Result;
-use aes::cipher::{consts::U16, generic_array::GenericArray, BlockDecryptMut, KeyIvInit};
+use aes::cipher::{consts::U16, generic_array::GenericArray, BlockCipher, BlockDecrypt, BlockDecryptMut, KeyIvInit};
 use cbc::{Decryptor, Encryptor};
 
 const SYMBOL_ARRAY: &[u8] = &[0x00, 0x00, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
@@ -22,8 +22,26 @@ pub struct EncryptedFileData {
     data: Vec<u8>,
 }
 
+type Aes128CbcEnc = Encryptor<aes::Aes128>;
+type Aes128CbcDec = Decryptor<aes::Aes128>;
+
 type Aes256CbcEnc = Encryptor<aes::Aes256>;
 type Aes256CbcDec = Decryptor<aes::Aes256>;
+
+trait DecryptorTrait {
+    fn decrypt(&mut self, buffer: &mut [u8]);
+}
+
+impl<T: BlockDecryptMut + BlockCipher> DecryptorTrait for Decryptor<T> {
+    fn decrypt(&mut self, buffer: &mut [u8]) {
+        if buffer.len() != 16 {
+            panic!("Buffer length must be 16");
+        }
+
+        let mut block = GenericArray::from_mut_slice(buffer);
+        self.decrypt_block_mut(&mut block);
+    }
+}
 
 pub struct DecryptedStub<'a> {
     bytes: &'a [u8],
@@ -36,8 +54,22 @@ impl<'a> DecryptedStub<'a> {
         Self { bytes: stub, key, iv }
     }
 
-    fn get_encrypt_type(&self) -> u8 {
-        self.bytes[0]
+    // fn get_encrypt_type(&self) -> u8 {
+    //     self.bytes[0]
+    // }
+
+    fn get_decrypter(&self) -> Box<dyn DecryptorTrait> {
+        match self.bytes[0] {
+            1 => Box::new(Aes128CbcDec::new(
+                GenericArray::from_slice(&self.key[..16]),  // AES-128: 16바이트 키
+                GenericArray::from_slice(self.iv)
+            )),
+            2 => Box::new(Aes256CbcDec::new(
+                GenericArray::from_slice(self.key),  // AES-256: 32바이트 키
+                GenericArray::from_slice(self.iv)
+            )),
+            _ => panic!("Invalid encrypt type"),
+        }
     }
 
     fn get_file_length(&self) -> u64 {
@@ -80,7 +112,8 @@ impl<'a> DecryptedStub<'a> {
     }
 
     pub fn decrypt(&self) -> Result<Vec<BindedFile>> {
-        let mut decrypter = Aes256CbcDec::new(self.key.into(), self.iv.into());
+        // let mut decrypter = Aes256CbcDec::new(self.key.into(), self.iv.into());
+        let mut decrypter = self.get_decrypter();
         let encrypted_binde_files = self.get_encrypted_binded_files();
 
         let mut decrypted_binded_files: Vec<BindedFile> = Vec::new();
@@ -88,9 +121,8 @@ impl<'a> DecryptedStub<'a> {
         for mut binded_file in encrypted_binde_files {
             let mut decrypted_data = Vec::new();
             for encrypted_chunk in binded_file.data.chunks_mut(16) {
-                let mut chunk = GenericArray::<u8, U16>::from_mut_slice(encrypted_chunk);
-                decrypter.decrypt_block_mut(&mut chunk);
-                decrypted_data.extend_from_slice(&chunk);
+                decrypter.decrypt(encrypted_chunk);
+                decrypted_data.extend_from_slice(encrypted_chunk);
             }
 
             decrypted_binded_files.push(BindedFile {
@@ -126,7 +158,7 @@ mod tests {
         let key = [0u8; 32];
         let iv = [0u8; 16];
         let encrypted_data = vec![
-            0x01, // encrypt type
+            0x02, // encrypt type
             0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // file length
             0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // file size
             0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // file name size
