@@ -6,12 +6,16 @@ edition = "2021"
 [profile.release]
 lto = true
 opt-level = 'z'
-codegen-units = 16
+codegen-units = 1
 panic = "abort"
+strip = true
+debug = false
+incremental = false
+overflow-checks = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aes = "0.8.4"
-cbc = "0.1.2"
-anyhow = "1.0.89"
+endec = { path = "../endec" }
+rand = "*"
+anyhow = { workspace = true }
