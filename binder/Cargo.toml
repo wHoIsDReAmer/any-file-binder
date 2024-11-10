@@ -12,6 +12,6 @@ panic = "abort"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = "0.21.0-rc.1"
-rust-crypto = "0.2.36"
 rand = "0.8.5"
+endec = { path = "../endec" }
+anyhow = { workspace = true }
