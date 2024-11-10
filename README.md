@@ -32,6 +32,7 @@ any-file-binder.exe -f <files...> [-s <stub>] [-o <output>]
 ### Command Arguments
 | Argument | Description | Default |
 |----------|-------------|---------|
+| `-e, --encryption` | Encryption type | `2` (AES-256-CBC) |
 | `-f, --files` | Files to bind (multiple allowed) | Required |
 | `-s, --stub` | Custom stub executable path | `stub.exe` |
 | `-o, --output` | Output file path | `output.exe` |
@@ -64,8 +65,8 @@ The binder combines multiple files into a single executable in a simple and secu
 ```
 
 ### Supported Encryption Types
-- `0`: AES-256-CBC
 - `1`: AES-128-CBC
+- `2`: AES-256-CBC
 
 ## 📝 License
 ```
