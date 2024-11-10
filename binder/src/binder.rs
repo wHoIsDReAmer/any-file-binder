@@ -16,7 +16,7 @@ pub struct Binder {
 
 impl Binder {
     pub fn bind(&self) -> Result<Vec<u8>> {
-        let mut buffer = Vec::with_capacity(self.stub.len());
+        let mut buffer = Vec::new();
 
         // Write stub to buffer
         buffer.extend_from_slice(&self.stub);
@@ -35,7 +35,7 @@ impl Binder {
             let extension = Path::new(file_name).extension().unwrap_or(blank_string.as_ref());
 
             let extension_size = extension.len() as u8;
-            buffer.extend_from_slice(&extension_size.to_le_bytes());
+            buffer.push(extension_size);
 
             // write file extension
             buffer.extend_from_slice(extension.to_str().unwrap_or_default().as_bytes());

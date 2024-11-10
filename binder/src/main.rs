@@ -1,6 +1,7 @@
 mod binder;
 
 use anyhow::Result;
+use endec::EncryptType;
 use std::io::Write;
 
 use binder::Binder;
@@ -23,9 +24,10 @@ fn print_logo() {
     println!("\\_______/ \\______|\\__|  \\__|\\_______/ \\________|\\__|  \\__|");
     println!();
     println!("Usage:");
-    println!("  -s <stub_path>    Set custom stub executable path (default: stub.exe)");
-    println!("  -f <file1> <file2> ...    List of files to bind");
-    println!("  -o <output_path>          Set output file path");
+    println!("  -e <encrypt_type>       Set encryption type (default: 1)");
+    println!("  -s <stub_path>          Set custom stub executable path (default: stub.exe)");
+    println!("  -f <file1> <file2> ... List of files to bind");
+    println!("  -o <output_path>        Set output file path");
     println!("  Or run without arguments for interactive mode");
     println!();
     println!("Official repository: https://github.com/wHoIsDReAmer/any-file-binder")
@@ -64,6 +66,14 @@ fn input_files(args: &mut Vec<String>) {
 }
 
 fn parse_arguments<'a>(args: &'a Vec<String>, binder: &mut Binder) -> Result<&'a str> {
+    // Get -e argument value for set encryption type
+    let encrypt_index = args.iter().position(|arg| arg == "-e");
+    let encrypt_type = match encrypt_index {
+        Some(index) => EncryptType::from(args.get(index + 1).ok_or(anyhow::anyhow!("Missing encryption type"))?.parse::<u8>()?),
+        None => EncryptType::Aes128Cbc,
+    };
+    binder.encryption_type = encrypt_type;
+
     // Get -s argument value for set stub file
     let stub_index = args.iter().position(|arg| arg == "-s");
     let stub_file_path = match stub_index {
@@ -117,6 +127,7 @@ fn main() -> Result<()> {
 
     // if no argument, CLI for users don't know what to input
     if args.len() == 0 {
+        binder.encryption_type = endec::EncryptType::Aes256Cbc;
         binder.stub = std::fs::read("stub.exe")?;
         input_files(&mut args);
     }

