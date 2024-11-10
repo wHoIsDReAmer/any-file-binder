@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use anyhow::Result;
 use std::{cell::RefCell, fs, os::windows::process::CommandExt};
 use endec::{constatants::{IV, KEY, SYMBOL_ARRAY}, decrypt::Decrypter, EncryptType};
