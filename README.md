@@ -26,7 +26,7 @@ No installation providing, just build and run.
 
 ### Basic Command Structure
 ```bash
-any-file-binder.exe -f <files...> [-s <stub>] [-o <output>]
+any-file-binder.exe -e <encryption> -f <files...> [-s <stub>] [-o <output>]
 ```
 
 ### Command Arguments
